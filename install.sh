@@ -29,8 +29,9 @@ else
 fi
 
 echo "=== Updating system ==="
-$SUDO DEBIAN_FRONTEND=noninteractive apt-get update -y
-$SUDO DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -o Dpkg::Options::="--force-confold"
+export DEBIAN_FRONTEND=noninteractive
+$SUDO apt-get update -y
+$SUDO apt-get upgrade -y -o Dpkg::Options::="--force-confold"
 
 echo "=== Installing dependencies ==="
 $SUDO apt-get install -y ca-certificates curl gnupg lsb-release
