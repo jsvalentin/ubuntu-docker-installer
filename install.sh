@@ -20,37 +20,42 @@ else
     CMD="sudo"
 fi
 
-# Step 1: Update system
-echo -e "${YELLOW}[1/8]${NC} Updating system packages..."
+# Step 1: Clean up any existing Docker repository files
+echo -e "${YELLOW}[1/9]${NC} Cleaning up old Docker repository files..."
+$CMD rm -f /etc/apt/sources.list.d/docker.list
+$CMD rm -f /etc/apt/keyrings/docker.asc
+
+# Step 2: Update system
+echo -e "${YELLOW}[2/9]${NC} Updating system packages..."
 DEBIAN_FRONTEND=noninteractive $CMD apt-get update -q
 DEBIAN_FRONTEND=noninteractive $CMD apt-get upgrade -y -q
 
-# Step 2: Install prerequisites
-echo -e "${YELLOW}[2/8]${NC} Installing prerequisites..."
+# Step 3: Install prerequisites
+echo -e "${YELLOW}[3/9]${NC} Installing prerequisites..."
 $CMD apt-get install -y -q \
     ca-certificates \
     curl \
     gnupg \
     lsb-release
 
-# Step 3: Create keyrings directory
-echo -e "${YELLOW}[3/8]${NC} Setting up keyrings directory..."
+# Step 4: Create keyrings directory
+echo -e "${YELLOW}[4/9]${NC} Setting up keyrings directory..."
 $CMD mkdir -p /etc/apt/keyrings
 
-# Step 4: Add Docker GPG key
-echo -e "${YELLOW}[4/8]${NC} Adding Docker's official GPG key..."
+# Step 5: Add Docker GPG key
+echo -e "${YELLOW}[5/9]${NC} Adding Docker's official GPG key..."
 $CMD curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 $CMD chmod a+r /etc/apt/keyrings/docker.asc
 
-# Step 5: Add Docker repository
-echo -e "${YELLOW}[5/8]${NC} Adding Docker repository..."
+# Step 6: Add Docker repository
+echo -e "${YELLOW}[6/9]${NC} Adding Docker repository..."
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
   $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
   $CMD tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-# Step 6: Install Docker
-echo -e "${YELLOW}[6/8]${NC} Installing Docker Engine..."
+# Step 7: Install Docker
+echo -e "${YELLOW}[7/9]${NC} Installing Docker Engine..."
 $CMD apt-get update -q
 $CMD apt-get install -y -q \
     docker-ce \
@@ -59,19 +64,19 @@ $CMD apt-get install -y -q \
     docker-buildx-plugin \
     docker-compose-plugin
 
-# Step 7: Start Docker
-echo -e "${YELLOW}[7/8]${NC} Starting Docker service..."
+# Step 8: Start Docker
+echo -e "${YELLOW}[8/9]${NC} Starting Docker service..."
 $CMD systemctl start docker
 $CMD systemctl enable docker
 
-# Step 8: Add user to docker group (if not root)
+# Step 9: Add user to docker group (if not root)
 if [ "$EUID" -ne 0 ]; then
-    echo -e "${YELLOW}[8/8]${NC} Adding user to docker group..."
+    echo -e "${YELLOW}[9/9]${NC} Adding user to docker group..."
     $CMD usermod -aG docker $USER
     echo -e "${GREEN}✓${NC} User added to docker group"
     echo -e "${YELLOW}  Note: Log out and back in for this to take effect${NC}"
 else
-    echo -e "${YELLOW}[8/8]${NC} Running as root, skipping user group step..."
+    echo -e "${YELLOW}[9/9]${NC} Running as root, skipping user group step..."
 fi
 
 # Verify installation
