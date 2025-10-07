@@ -19,8 +19,10 @@ fi
 # Check if running as root or with sudo
 if [[ $EUID -eq 0 ]]; then
     SUDO=""
+    SUDO_ENV=""
 else
     SUDO="sudo"
+    SUDO_ENV="sudo -E"
     # Check if sudo is available
     if ! command -v sudo &> /dev/null; then
         echo -e "${RED}❌ sudo is not available. Please run as root or install sudo${NC}"
@@ -31,7 +33,7 @@ fi
 echo "=== Updating system ==="
 export DEBIAN_FRONTEND=noninteractive
 $SUDO apt-get update -y
-$SUDO apt-get upgrade -y -o Dpkg::Options::="--force-confold"
+$SUDO_ENV apt-get upgrade -y -o Dpkg::Options::="--force-confold"
 
 echo "=== Installing dependencies ==="
 $SUDO apt-get install -y ca-certificates curl gnupg lsb-release
