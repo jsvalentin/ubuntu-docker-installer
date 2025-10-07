@@ -1,110 +1,108 @@
 #!/bin/bash
 set -e
 
-# Color codes for output
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-echo "=== Docker Installation Script for Ubuntu ==="
+echo -e "${BLUE}================================${NC}"
+echo -e "${BLUE}Docker Installation for Ubuntu${NC}"
+echo -e "${BLUE}================================${NC}"
 echo
 
-# Check if running on Ubuntu
-if ! grep -q "Ubuntu" /etc/os-release 2>/dev/null; then
-    echo -e "${RED}❌ This script is designed for Ubuntu only${NC}"
-    exit 1
+# Detect if running as root
+if [ "$EUID" -eq 0 ]; then 
+    CMD=""
+else 
+    CMD="sudo"
 fi
 
-# Check if running as root or with sudo
-if [[ $EUID -eq 0 ]]; then
-    SUDO=""
-else
-    SUDO="sudo"
-    # Check if sudo is available
-    if ! command -v sudo &> /dev/null; then
-        echo -e "${RED}❌ sudo is not available. Please run as root or install sudo${NC}"
-        exit 1
-    fi
-fi
+# Step 1: Update system
+echo -e "${YELLOW}[1/8]${NC} Updating system packages..."
+DEBIAN_FRONTEND=noninteractive $CMD apt-get update -q
+DEBIAN_FRONTEND=noninteractive $CMD apt-get upgrade -y -q
 
-echo "=== Updating system ==="
-DEBIAN_FRONTEND=noninteractive $SUDO apt-get update -y
-DEBIAN_FRONTEND=noninteractive $SUDO apt-get upgrade -y -o Dpkg::Options::="--force-confold"
+# Step 2: Install prerequisites
+echo -e "${YELLOW}[2/8]${NC} Installing prerequisites..."
+$CMD apt-get install -y -q \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release
 
-echo "=== Installing dependencies ==="
-$SUDO apt-get install -y ca-certificates curl gnupg lsb-release
+# Step 3: Create keyrings directory
+echo -e "${YELLOW}[3/8]${NC} Setting up keyrings directory..."
+$CMD mkdir -p /etc/apt/keyrings
 
-echo "=== Removing old Docker installations (if any) ==="
-$SUDO apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
+# Step 4: Add Docker GPG key
+echo -e "${YELLOW}[4/8]${NC} Adding Docker's official GPG key..."
+$CMD curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+$CMD chmod a+r /etc/apt/keyrings/docker.asc
 
-echo "=== Adding Docker GPG key ==="
-$SUDO install -m 0755 -d /etc/apt/keyrings
-$SUDO curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-$SUDO chmod a+r /etc/apt/keyrings/docker.asc
-
-echo "=== Adding Docker repository ==="
+# Step 5: Add Docker repository
+echo -e "${YELLOW}[5/8]${NC} Adding Docker repository..."
 echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
-  https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
-  $SUDO tee /etc/apt/sources.list.d/docker.list > /dev/null
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  $CMD tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-echo "=== Installing Docker Engine and Compose ==="
-$SUDO apt-get update -y
-$SUDO apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+# Step 6: Install Docker
+echo -e "${YELLOW}[6/8]${NC} Installing Docker Engine..."
+$CMD apt-get update -q
+$CMD apt-get install -y -q \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin
 
-echo "=== Starting Docker service ==="
-if ! systemctl is-active --quiet docker; then
-  echo "Starting Docker..."
-  $SUDO systemctl start docker
-  sleep 2
+# Step 7: Start Docker
+echo -e "${YELLOW}[7/8]${NC} Starting Docker service..."
+$CMD systemctl start docker
+$CMD systemctl enable docker
+
+# Step 8: Add user to docker group (if not root)
+if [ "$EUID" -ne 0 ]; then
+    echo -e "${YELLOW}[8/8]${NC} Adding user to docker group..."
+    $CMD usermod -aG docker $USER
+    echo -e "${GREEN}✓${NC} User added to docker group"
+    echo -e "${YELLOW}  Note: Log out and back in for this to take effect${NC}"
 else
-  echo "Docker is already running."
+    echo -e "${YELLOW}[8/8]${NC} Running as root, skipping user group step..."
 fi
 
-echo "=== Enabling Docker on boot ==="
-$SUDO systemctl enable docker
+# Verify installation
+echo
+echo -e "${BLUE}================================${NC}"
+echo -e "${BLUE}Verification${NC}"
+echo -e "${BLUE}================================${NC}"
+echo
 
-echo "=== Adding current user to docker group (if not root) ==="
-if [[ $EUID -ne 0 ]]; then
-    $SUDO usermod -aG docker $USER
-    echo -e "${YELLOW}⚠️  You need to log out and back in for group changes to take effect${NC}"
-    echo -e "${YELLOW}   Or run: newgrp docker${NC}"
+echo -e "${GREEN}✓${NC} Docker Version:"
+docker --version
+
+echo
+echo -e "${GREEN}✓${NC} Docker Compose Version:"
+docker compose version
+
+echo
+echo -e "${GREEN}✓${NC} Docker Service Status:"
+$CMD systemctl is-active docker
+
+echo
+echo -e "${YELLOW}Testing Docker with hello-world container...${NC}"
+$CMD docker run --rm hello-world
+
+echo
+echo -e "${BLUE}================================${NC}"
+echo -e "${GREEN}✓ Installation Complete!${NC}"
+echo -e "${BLUE}================================${NC}"
+echo
+echo "Docker and Docker Compose are now installed and running."
+if [ "$EUID" -ne 0 ]; then
+    echo -e "${YELLOW}Remember:${NC} Log out and back in to use docker without sudo"
 fi
-
 echo
-echo "=== Verifying installation ==="
-echo
-echo "Docker version:"
-docker --version || { echo -e "${RED}❌ Docker not found${NC}"; exit 1; }
-
-echo
-echo "Docker Compose version:"
-docker compose version || { echo -e "${RED}❌ Docker Compose not found${NC}"; exit 1; }
-
-echo
-echo "Docker service status:"
-$SUDO systemctl status docker --no-pager || { echo -e "${RED}❌ Docker service not running${NC}"; exit 1; }
-
-echo
-echo "=== Running test container ==="
-if $SUDO docker run --rm hello-world; then
-    echo
-    echo -e "${GREEN}✅ Everything is working properly! Docker and Compose are ready to use.${NC}"
-    echo
-    if [[ $EUID -ne 0 ]]; then
-        echo -e "${YELLOW}📝 Remember to log out and back in (or run 'newgrp docker') to use Docker without sudo${NC}"
-    fi
-else
-    echo -e "${RED}❌ Docker test failed${NC}"
-    exit 1
-fi
-
-echo
-echo "=== Installation Summary ==="
-echo "• Docker version: $(docker --version)"
-echo "• Docker Compose version: $(docker compose version)"
-echo "• Docker service: $(systemctl is-active docker)"
-echo
-echo -e "${GREEN}Installation complete!${NC}"
